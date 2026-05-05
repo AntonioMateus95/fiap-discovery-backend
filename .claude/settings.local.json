@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s https://pypi.org/pypi/langflow-base/__TRACKED_VAR__/json)",
+      "Bash(curl -s https://pypi.org/pypi/langflow/__TRACKED_VAR__/json)",
+      "Bash(sqlite3:*)"
+    ]
+  }
+}

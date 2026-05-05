@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./minio_data:/data
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse
+    ports:
+      - "8123:8123" #HTTP Port
+      - "9002:9000" #TCP Port
+    volumes:
+      - ./clickhouse_config:/docker-entrypoint-initdb.d
+    environment:
+      CLICKHOUSE_DB: contabilizei
+      CLICKHOUSE_USER: admin
+      CLICKHOUSE_PASSWORD: password123
+    depends_on:
+      minio:
+        condition: service_started
+
+  langflow:
+    container_name: langflow
+    build:
+      context: .
+      dockerfile: langflow.dockerfile
+    ports:
+      - "7860:7860"
+    environment:
+      LANGFLOW_CONFIG_DIR: /app/config
+      LANGFLOW_DATABASE_URL: sqlite:////app/config/langflow.db
+      LANGFLOW_STORAGE_TYPE: s3
+      LANGFLOW_OBJECT_STORAGE_BUCKET_NAME: langflow
+      LANGFLOW_VARIABLES_TO_GET_FROM_ENVIRONMENT: CLICKHOUSE_DB_URL,GROQ_API_KEY
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: password123
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL_S3: http://minio:9000
+      CLICKHOUSE_DB_URL: clickhouse+http://admin:password123@clickhouse:8123/contabilizei
+    env_file: .env.langflow.local #Adicione a variável GROQ_API_KEY neste arquivo
+    depends_on:
+      clickhouse:
+        condition: service_started
+    volumes:
+      - ./langflow_config:/app/config

@@ -1,0 +1,68 @@
+@startuml Contabilizei — Analytics Assistant (C4 Component)
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Contabilizei — Analytics Assistant · Diagrama de Componentes (Langflow)
+
+Person(user, "Analista / Usuário", "Faz perguntas em linguagem natural\nsobre abertura de empresas no Brasil")
+
+System_Ext(groq, "Groq API", "Inferência LLM\nllama-3.3-70b-versatile")
+System_Ext(r2, "Cloudflare R2", "Object Storage cloud\nDados brutos CNPJ / Receita Federal")
+System_Ext(clickhouse_cloud, "ClickHouse Cloud", "Banco analítico gerenciado\ncontabilizei.abertura_empresas_parquet")
+System_Ext(receita, "Receita Federal", "Fonte pública de dados CNPJ")
+
+System_Boundary(hf, "Hugging Face Spaces") {
+
+    Container_Boundary(langflow, "Langflow") {
+
+        Component(chat_input, "Chat Input", "Langflow Node", "Recebe a pergunta do usuário\ne a propaga pelo pipeline")
+
+        Component(catalog_builder, "Montagem do Catálogo Semântico", "Python REPL Node", "Mescla catálogo base (YAML)\ncom definição do dataset\nabertura_empresas.yaml")
+
+        Component(planner, "Planner", "Prompt Template + Groq LLM", "Converte a pergunta em linguagem natural\nem um JSON estruturado com intent,\nfiltros, agregações e ordenação")
+
+        Component(intent_validator, "Validar Intent", "Python REPL Node (Router)", "Verifica se intent == 'unknown'.\nRoteia para fallback ou para\no SQL Query Builder")
+
+        Component(fallback, "Fallback", "Text Operations Node", "Substitui a saída por mensagem\npadrão quando o intent\nnão é reconhecido")
+
+        Component(sql_builder, "SQL Query Builder", "Python REPL Node", "Converte o JSON do Planner\nem SQL executável via\nSQLAlchemy Core")
+
+        Component(sql_executor, "SQL Executor", "SQL Component Node", "Executa a query no ClickHouse\ne retorna o resultado\ncomo DataFrame")
+
+        Component(deliver, "Deliver", "Prompt Template + Groq LLM", "Interpreta os dados retornados\ne formula a resposta final\nem linguagem natural")
+
+        Component(chat_output, "Chat Output", "Langflow Node", "Entrega a resposta ao usuário\n(resposta final ou fallback)")
+
+    }
+}
+
+' Fluxo principal
+Rel(user, chat_input, "Pergunta em linguagem natural", "HTTPS / Chat UI")
+Rel(chat_input, planner, "Pergunta do usuário")
+Rel(catalog_builder, planner, "Catálogo semântico completo\n(datasets, campos, métricas)")
+Rel(planner, groq, "Chamada ao LLM — Planner", "HTTPS / REST")
+Rel(planner, intent_validator, "JSON com intent\ne parâmetros da query")
+
+' Roteamento condicional
+Rel(intent_validator, fallback, "intent == unknown")
+Rel(intent_validator, sql_builder, "intent reconhecido")
+
+' Caminho SQL
+Rel(sql_builder, sql_executor, "SQL compilado\n(string)")
+Rel(sql_executor, clickhouse_cloud, "Executa query analítica", "HTTPS / Native Protocol")
+Rel(sql_executor, deliver, "Resultado em texto\n(DataFrame serializado)")
+Rel(chat_input, deliver, "Pergunta original\n(user_prompt)")
+Rel(deliver, groq, "Chamada ao LLM — Deliver", "HTTPS / REST")
+
+' Saídas
+Rel(deliver, chat_output, "Resposta final")
+Rel(fallback, chat_output, "Mensagem de fallback")
+Rel(chat_output, user, "Resposta em linguagem natural", "HTTPS / Chat UI")
+
+' Dados externos
+Rel(receita, r2, "Carga dos arquivos CSV brutos\n(ingestão inicial)", "Upload")
+Rel(r2, clickhouse_cloud, "Criação da tabela analítica\n(abertura_empresas_parquet.py)", "S3-compatible API")
+
+@enduml

@@ -1,0 +1,43 @@
+@startuml Contabilizei — Analytics Assistant (C4 Container)
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Contabilizei — Analytics Assistant · Diagrama de Containers
+
+Person(user, "Analista / Usuário", "Faz perguntas em linguagem natural\nsobre abertura de empresas no Brasil")
+
+System_Ext(groq, "Groq API", "Inferência LLM\nllama-3.3-70b-versatile")
+System_Ext(receita, "Receita Federal", "Dados públicos de CNPJ\n(arquivos CSV)")
+
+System_Boundary(contabilizei, "Contabilizei Analytics") {
+
+    Container(langflow, "Langflow", "Python / Hugging Face Spaces", "Orquestra o pipeline conversacional:\nPlanejar consulta → Validar → Escrever SQL → Executar consulta")
+
+    Container(clickhouse, "ClickHouse Cloud", "OLAP Database gerenciado", "Armazena e consulta dados analíticos\nde abertura de empresas\n(contabilizei.abertura_empresas_parquet)")
+
+    Container(r2, "Cloudflare R2", "Object Storage gerenciado", "Armazena os arquivos brutos\nda Receita Federal (dados raw CNPJ)")
+
+    ContainerDb(langflow_db, "Langflow DB", "SQLite", "Persiste os fluxos visuais\ne configurações do Langflow")
+
+}
+
+' Interações do usuário
+Rel(user, langflow, "Envia pergunta em\nlinguagem natural", "HTTPS / Chat UI")
+Rel(langflow, user, "Responde em\nlinguagem natural", "HTTPS / Chat UI")
+
+' Langflow ↔ LLM externo
+Rel(langflow, groq, "Planner: pergunta → JSON estruturado\nDeliver: dados → resposta textual", "HTTPS / REST")
+
+' Langflow ↔ ClickHouse Cloud
+Rel(langflow, clickhouse, "Executa SQL gerado\npelo Query Builder", "HTTPS / SQLAlchemy")
+
+' Langflow ↔ armazenamento interno
+Rel(langflow, langflow_db, "Lê configuração\ndo fluxo ativo", "SQLite")
+
+' Ingestão de dados
+Rel(receita, r2, "Carga inicial\ndos arquivos CSV", "Upload manual / script")
+Rel(r2, clickhouse, "Leitura para criação\nda tabela analítica", "S3-compatible API / abertura_empresas_parquet.py")
+
+@enduml
