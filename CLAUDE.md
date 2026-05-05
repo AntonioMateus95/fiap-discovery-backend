@@ -122,16 +122,16 @@ O fluxo possui dois caminhos dependendo do resultado do Planner:
 ### 1. Inputs estáticos
 
 - **`TextInput-AYh8e` — Schema json para o planner**: contém o JSON Schema completo (`planner.schema.json`) injetado como variável `{json_schema}` no prompt do Planner.
-- **`TextInput-cl2BX` — Catálogo semântico genérico**: contém o conteúdo de `v1/semantic_catalog.yaml`.
+- **`TextInput-cl2BX` — Catálogo semântico genérico**: contém o conteúdo de `v1/base_semantic_catalog.yaml`.
 - **`File-hMTWH` — Read File**: lê o arquivo `abertura_empresas` (YAML do dataset) do storage local e passa o caminho para o componente de montagem do catálogo.
 
 ---
 
 ### 2. Montagem do Catálogo Semântico
-**Arquivo:** `v1/semantic_catalog_builder_component.py`  
+**Arquivo:** `v1/components/semantic_catalog_builder_component.py`  
 **Node:** `PythonREPLComponent-pJ2PO`
 
-Mescla o catálogo base (`semantic_catalog.yaml`) com o dataset YAML lido pelo `File-hMTWH`, populando a chave `datasets` no YAML final. O resultado é passado para um `Parser` que o serializa como texto puro antes de entrar no Prompt Template.
+Mescla o catálogo base (`base_semantic_catalog.yaml`) com o dataset YAML lido pelo `File-hMTWH`, populando a chave `datasets` no YAML final. O resultado é passado para um `Parser` que o serializa como texto puro antes de entrar no Prompt Template.
 
 ---
 
@@ -185,12 +185,12 @@ A pergunta do usuário chega via `ChatInput` como `input_value`.
 ```
 
 Agregações: `count`, `count_distinct`, `sum`, `avg`, `min`, `max`.  
-Operadores de filtro: `=`, `!=`, `>`, `>=`, `<`, `<=`, `like`, `ilike`, `in`, `not_in`, `between`, `is_null`, `is_not_null`.
+Operadores de filtro: `=`, `!=`, `>`, `>=`, `<`, `<=`, `like`, `in`, `between`.
 
 ---
 
 ### 4. Validar Intent
-**Arquivo:** `v1/condition_component.py`  
+**Arquivo:** `v1/components/validate_intent_component.py`  
 **Node:** `PythonREPLComponent-1s7YW`
 
 Roteador condicional. Verifica se `intent == "unknown"` no JSON do Planner.
@@ -212,13 +212,13 @@ A saída vai para `ChatOutput-Vk7t0` encerrando o fluxo.
 ---
 
 ### 6. SQL Query Builder
-**Arquivo:** `v1/sql_query_builder_component.py`  
+**Arquivo:** `v1/components/sql_query_builder_component.py`  
 **Node:** `PythonREPLComponent-Mwems`
 
-Converte o JSON do Planner em SQL executável usando **SQLAlchemy Core**.
+Converte o JSON do Planner em SQL executável usando **SQLAlchemy Core**. Recebe `database_url` como parâmetro de entrada para introspeccionar o schema da tabela em tempo de execução.
 
 **Processo interno (`JsonToSqlBuilder`):**
-1. Introspecciona colunas da tabela via `system.columns` do ClickHouse.
+1. Introspecciona colunas da tabela via `autoload_with` do SQLAlchemy (conecta ao ClickHouse).
 2. Constrói expressões `SELECT` (dimensões ou agregações).
 3. Aplica filtros com `AND` implícito.
 4. Adiciona `GROUP BY`, `ORDER BY` e `LIMIT`.
@@ -257,7 +257,7 @@ O Prompt Template monta a entrada com:
 
 ## Catálogo Semântico
 
-### Catálogo Base — `v1/semantic_catalog.yaml`
+### Catálogo Base — `v1/base_semantic_catalog.yaml`
 
 - Regras globais: limite máximo 1000 registros, intent padrão `aggregation`
 - Normalização de UFs (ex.: "São Paulo" → "SP")
@@ -265,7 +265,7 @@ O Prompt Template monta a entrada com:
 - Validações em runtime: campos, tabelas, métricas, operadores, group_by, order_by
 
 ### Dataset: `abertura_empresas`
-**Arquivo:** `langflow_config/1e58139a-a696-42ea-8da1-103222c1ea49/abertura_empresas.yaml`  
+**Arquivo:** `v1/datasets/abertura_empresas.yaml`  
 **Tabela física:** `contabilizei.abertura_empresas_parquet`  
 **Joins:** não permitidos
 
@@ -284,29 +284,31 @@ O Prompt Template monta a entrada com:
 
 ```
 contabilizei/
-├── docker-compose.yml                         # Infraestrutura (MinIO, ClickHouse, Langflow)
-├── langflow.dockerfile                        # Imagem customizada do Langflow
+├── docker-compose.yml                              # Infraestrutura (MinIO, ClickHouse, Langflow)
+├── langflow.dockerfile                             # Imagem customizada do Langflow
+├── clickhouse_config/
+│   └── init.sql                                    # DDL executado na inicialização do ClickHouse
 ├── langflow_config/
-│   ├── langflow.db                            # SQLite com os fluxos Langflow
-│   └── 1e58139a-a696-42ea-8da1-103222c1ea49/
-│       └── abertura_empresas.yaml             # Dataset YAML usado pelo flow ativo
+│   ├── langflow.db                                 # SQLite com os fluxos Langflow
+│   └── secret_key                                  # Chave secreta do Langflow
 ├── v1/
-│   ├── semantic_catalog.yaml                  # Catálogo semântico base
-│   ├── semantic_catalog_builder_component.py  # Monta catálogo completo (Langflow component)
-│   ├── condition_component.py                 # Valida intent (Langflow component)
-│   ├── sql_query_builder_component.py         # JSON → SQL (Langflow component)
+│   ├── base_semantic_catalog.yaml                  # Catálogo semântico base
+│   ├── components/
+│   │   ├── semantic_catalog_builder_component.py   # Monta catálogo completo (Langflow component)
+│   │   ├── validate_intent_component.py            # Valida intent (Langflow component)
+│   │   └── sql_query_builder_component.py          # JSON → SQL (Langflow component)
 │   ├── planner/
-│   │   ├── system_prompt.txt                  # Prompt do Planner LLM
-│   │   └── planner.schema.json                # JSON Schema da saída do Planner
+│   │   ├── system_prompt.txt                       # Prompt do Planner LLM
+│   │   └── planner.schema.json                     # JSON Schema da saída do Planner
 │   ├── deliver/
-│   │   └── system_prompt.txt                  # Prompt do Deliver LLM
+│   │   └── system_prompt.txt                       # Prompt do Deliver LLM
 │   ├── analytics/
 │   │   └── abertura_empresas/
-│   │       └── abertura_empresas_parquet.py   # Script de preparação dos dados analíticos
-│   ├── clickhouse/
-│   │   └── contabilizei.raw.schema.presto.sql # DDL das tabelas raw (Presto/Hive sobre MinIO)
+│   │       └── abertura_empresas_parquet.py        # Script de preparação dos dados analíticos
+│   ├── langflow/
+│   │   └── V202604302236__melhorias_nos_componentes_customizados.json  # Export do flow
 │   └── datasets/
-│       └── abertura_empresas.yaml             # Definição do dataset (versão v1)
-├── dados_receita_federal/                     # Dados brutos CNPJ (não versionados)
-└── clickhouse_data/                           # Volume persistente do ClickHouse
+│       └── abertura_empresas.yaml                  # Definição do dataset
+├── dados_receita_federal/                          # Dados brutos CNPJ (não versionados)
+└── minio_data/                                     # Volume persistente do MinIO
 ```

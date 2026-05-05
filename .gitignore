@@ -9,3 +9,6 @@ v1/analytics/abertura_empresas/output/
 
 # Volume do minio
 minio_data/
+
+# Trabalhos relacionados
+related_work/

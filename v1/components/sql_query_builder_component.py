@@ -2,9 +2,9 @@ import json
 import re
 
 from lfx.custom.custom_component.component import Component
-from lfx.io import StrInput, MessageTextInput, Output
+from lfx.io import StrInput, MessageTextInput, Output, SecretStrInput
 from lfx.schema.message import Message
-from sqlalchemy import MetaData, Table, select, func, and_, create_engine
+from sqlalchemy import MetaData, Table, select, func, asc, desc, and_, create_engine
 from sqlalchemy.sql import Select
 from typing import Any, Dict, List
 
@@ -37,7 +37,7 @@ class JsonToSqlBuilder:
 
         order_by_items = spec.get("order_by", [])
         if order_by_items:
-            stmt = stmt.order_by(*self._build_order_by(tbl, order_by_items))
+            stmt = stmt.order_by(*self._build_order_by(order_by_items))
 
         limit_value = spec.get("limit")
         if limit_value is not None:
@@ -151,19 +151,17 @@ class JsonToSqlBuilder:
                 raise QueryBuilderError(f"Operador não suportado: {operator}")
         return expressions
 
-    def _build_order_by(self, tbl, order_by_items: List[Dict[str, Any]]):
+    def _build_order_by(self, order_by_items: List[Dict[str, Any]]):
         result = []
 
         for item in order_by_items:
             field = item.get("field")
             direction = item.get("direction", "asc").lower()
 
-            col = self._get_column(tbl, field)
-
             if direction == "asc":
-                result.append(col.asc())
+                result.append(asc(field))
             elif direction == "desc":
-                result.append(col.desc())
+                result.append(desc(field))
             else:
                 raise QueryBuilderError(f"Direção inválida no order_by: {direction}")
 
@@ -180,14 +178,11 @@ class SqlQueryBuilderComponent(Component):
     icon = "square-terminal"
 
     inputs = [
-        StrInput(
-            name="database_url",
+        SecretStrInput(
+            name="database_url", 
             display_name="Database URL",
             info="URL de conexão do banco de dados usado para validar a consulta gerada.",
-            advanced=False,
-            value="",
-            tool_mode=False,
-            required=True,
+            real_time_refresh=True
         ),
         MessageTextInput(
             name="query_plan",

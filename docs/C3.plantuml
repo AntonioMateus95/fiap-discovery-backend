@@ -1,0 +1,83 @@
+@startuml C4_Component
+!include <C4/C4_Component>
+
+LAYOUT_WITH_LEGEND()
+LAYOUT_TOP_DOWN()
+
+title Nível 3 — Componentes: Analytics Agent (AWS Lambda + LangChain)
+
+Container_Boundary(lambda, "Analytics Agent — AWS Lambda") {
+
+    Component(handler, "Lambda Handler", "Python", "Ponto de entrada. Recebe a pergunta\ndo usuário e orquestra o fluxo do agente")
+
+    together {
+        Component(catalogBuilder, "Semantic Catalog Builder", "Python / YAML", "Mescla o catálogo semântico base\ncom os datasets disponíveis")
+
+        Component(plannerChain, "Planner Chain", "LangChain / ChatPromptTemplate", "Monta o prompt com JSON Schema\ne catálogo semântico, invoca o LLM\ne obtém o plano analítico em JSON")
+
+        Component(intentRouter, "Intent Router", "Python", "Avalia o campo intent do plano.\nSe unknown → fallback.\nSenão → SQL Query Builder")
+
+        Component(sqlBuilder, "SQL Query Builder", "Python / SQLAlchemy Core", "Converte o plano JSON em SQL\nexecutável via introspecção\nde schema (SQLAlchemy)")
+
+        Component(sqlExecutor, "SQL Executor", "Python / SQLAlchemy", "Executa a query SQL no banco\ne retorna o resultado serializado")
+
+        Component(deliverChain, "Deliver Chain", "LangChain / ChatPromptTemplate", "Monta o prompt com a pergunta\noriginal e o resultado da query,\ninvoca o LLM para gerar a resposta")
+    }
+
+    Component(catalogBase, "Catálogo Semântico Base", "YAML", "Regras globais, intents,\noperadores, agregações\ne normalizações")
+
+    Component(datasetDef, "Dataset: abertura_empresas", "YAML", "Campos, tipos semânticos,\ncapacidades e guardrails")
+
+    Component(plannerPrompt, "Planner System Prompt", "Texto", "Instruções para o LLM atuar\ncomo planner analítico")
+
+    Component(plannerSchema, "Planner JSON Schema", "JSON Schema", "Valida a saída do Planner:\nintent, select, filters,\ngroup_by, order_by, limit")
+
+    Component(deliverPrompt, "Deliver System Prompt", "Texto", "Instruções para o LLM interpretar\nresultados e responder\nem linguagem natural")
+}
+
+System_Ext(bedrock, "Amazon Bedrock", "LLM as a Service")
+
+System_Ext(clickhouse, "ClickHouse Cloud", "Data Warehouse")
+
+note bottom of clickhouse
+  Pode ser substituído pelo
+  datalake existente na Contabilizei
+end note
+
+' --- Ordem horizontal do pipeline (links ocultos) ---
+catalogBuilder -[hidden]R-> plannerChain
+plannerChain -[hidden]R-> intentRouter
+intentRouter -[hidden]R-> sqlBuilder
+sqlBuilder -[hidden]R-> sqlExecutor
+sqlExecutor -[hidden]R-> deliverChain
+
+' --- Artefatos abaixo dos seus componentes (links ocultos) ---
+catalogBuilder -[hidden]D-> catalogBase
+catalogBuilder -[hidden]D-> datasetDef
+plannerChain -[hidden]D-> plannerPrompt
+plannerChain -[hidden]D-> plannerSchema
+deliverChain -[hidden]D-> deliverPrompt
+
+' --- Handler → pipeline ---
+Rel_D(handler, catalogBuilder, "1. Solicita catálogo\nsemântico completo")
+Rel_D(handler, plannerChain, "2. Envia pergunta + catálogo")
+Rel_D(handler, intentRouter, "3. Envia plano JSON")
+Rel_L(intentRouter, handler, "Fallback (intent = unknown)")
+Rel_D(intentRouter, sqlBuilder, "4. Encaminha plano válido\n(intent ≠ unknown)")
+Rel_R(sqlBuilder, sqlExecutor, "Passa SQL gerada")
+Rel_D(handler, deliverChain, "5. Envia pergunta + resultado")
+
+' --- Pipeline → artefatos (abaixo) ---
+Rel_D(catalogBuilder, catalogBase, "Lê regras globais")
+Rel_D(catalogBuilder, datasetDef, "Lê definição do dataset")
+Rel_D(plannerChain, plannerPrompt, "Usa como system prompt")
+Rel_D(plannerChain, plannerSchema, "Injeta como {json_schema}")
+Rel_D(deliverChain, deliverPrompt, "Usa como system prompt")
+
+' --- Pipeline → sistemas externos ---
+Rel_R(plannerChain, bedrock, "Invoca LLM")
+Rel_R(deliverChain, bedrock, "Invoca LLM")
+Rel_D(sqlExecutor, clickhouse, "Executa query SQL")
+Rel_D(sqlBuilder, clickhouse, "Introspecção de schema")
+
+@enduml

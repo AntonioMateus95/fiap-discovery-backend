@@ -1,160 +1,164 @@
-# Contabilizei - Importação de Dados CNPJ
+# Contabilizei — Analytics Assistant
 
-Este repositório contém scripts e configurações para importar os dados abertos de CNPJ da Receita Federal do Brasil para um banco de dados PostgreSQL utilizando o `pgloader`.
+Aplicação de analytics conversacional construída sobre [Langflow](https://www.langflow.org/). O usuário faz uma pergunta em linguagem natural; um pipeline de componentes a transforma em uma consulta SQL executada no ClickHouse e devolve uma resposta textual.
+
+---
+
+## Arquitetura
+
+```
+[Usuário] → [Langflow :7860] → [ClickHouse :8123] → [MinIO :9000]
+```
+
+| Serviço      | Porta(s)              | Função                                       |
+|--------------|-----------------------|----------------------------------------------|
+| MinIO        | 9000 (API), 9001 (UI) | Object storage: dados analíticos e arquivos do Langflow |
+| ClickHouse   | 8123 (HTTP), 9002 (TCP) | Banco de dados analítico                   |
+| Langflow     | 7860                  | Orquestrador do pipeline (UI + runtime)      |
+
+O fluxo converte a pergunta em um JSON estruturado via LLM (Groq `llama-3.3-70b-versatile`), traduz esse JSON para SQL com SQLAlchemy e executa a query diretamente no ClickHouse. O resultado é interpretado por um segundo LLM e devolvido ao usuário em linguagem natural.
+
+---
 
 ## Pré-requisitos
 
-- PostgreSQL instalado e configurado
-- pgloader instalado (veja instruções abaixo)
-- Acesso à internet para download dos arquivos de dados
+- [Docker](https://docs.docker.com/get-docker/) e [Docker Compose](https://docs.docker.com/compose/)
+- Chave de API do [Groq](https://console.groq.com/)
 
-## Instalação do pgloader
+---
 
-### Linux
+## Configuração
 
-#### Ubuntu/Debian
+### 1. Variáveis de ambiente
+
+Crie o arquivo `.env.langflow.local` na raiz do projeto com a sua chave Groq:
+
+```
+GROQ_API_KEY=<sua-chave-groq>
+```
+
+### 2. MinIO — buckets e dados
+
+Após subir os serviços (passo 3), acesse o console MinIO em **http://localhost:9001** (usuário: `admin`, senha: `password123`) e crie dois buckets:
+
+| Bucket         | Finalidade                                      |
+|----------------|-------------------------------------------------|
+| `contabilizei` | Dados analíticos lidos pelo ClickHouse via S3   |
+| `langflow`     | Armazenamento de arquivos internos do Langflow  |
+
+No bucket **`contabilizei`**, carregue o arquivo parquet no seguinte caminho:
+
+```
+analytics/abertura_empresas/<arquivo>.parquet
+```
+
+O arquivo parquet pode ser encontrado no seguinte [link](https://drive.google.com/file/d/1drPIZt2nU0fcInHU1TJwAO5oN_1hkRhy/view?usp=sharing).
+
+O ClickHouse lê esse arquivo diretamente via S3 Engine, sem necessidade de importação manual.
+
+### 3. Subir os serviços
 
 ```bash
-# Adicione o repositório oficial do pgloader
-sudo apt-get update
-sudo apt-get install -y pgloader
+docker compose up -d
 ```
 
-#### Fedora/RHEL/CentOS
+Aguarde todos os contêineres ficarem saudáveis antes de prosseguir.
 
-```bash
-# Via dnf/yum
-sudo dnf install pgloader
-# ou
-sudo yum install pgloader
-```
-
-#### Arch Linux
-
-```bash
-sudo pacman -S pgloader
-```
-
-#### Compilação a partir do código-fonte
-
-Se preferir compilar a partir do código-fonte:
-
-```bash
-# Instale as dependências
-sudo apt-get install -y build-essential sbcl unzip libsqlite3-dev make curl \
-     gawk freetds-dev libzip-dev
-
-# Clone o repositório
-git clone https://github.com/dimitri/pgloader.git
-cd pgloader
-
-# Compile
-make pgloader
-sudo make install
-```
-
-### Windows
-
-#### Opção 1: Usando WSL (Windows Subsystem for Linux)
-
-Recomendado para Windows. Instale o WSL e siga as instruções para Linux acima.
-
-1. Instale o WSL2:
-   ```powershell
-   wsl --install
-   ```
-
-2. Após instalar o WSL, abra o terminal Linux e siga as instruções de instalação para Linux.
-
-#### Opção 2: Usando Chocolatey
-
-```powershell
-choco install pgloader
-```
-
-#### Opção 3: Download binário
-
-1. Acesse a página de releases do pgloader: https://github.com/dimitri/pgloader/releases
-2. Baixe a versão mais recente para Windows
-3. Extraia o arquivo e adicione ao PATH do sistema
-
-#### Opção 4: Usando Docker
-
-```bash
-docker pull dimitri/pgloader
-```
-
-Para usar com Docker:
-```bash
-docker run --rm -v /caminho/para/dados:/data dimitri/pgloader pgloader [comandos]
-```
-
-## Download dos Arquivos de Dados
-
-Os arquivos grandes de dados CNPJ da Receita Federal podem ser baixados diretamente do site oficial:
-
-**URL dos Dados Abertos CNPJ:**
-https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/
-
-Os arquivos estão organizados por mês/ano em diretórios nomeados como `YYYY-MM/`. Baixe os arquivos necessários e coloque-os na pasta `dados/` deste repositório.
-
-### Estrutura de arquivos esperada
-
-Os scripts de load esperam arquivos com os seguintes padrões de nome:
-- `K3241.K03200Y[0-9].D60110.EMPRECSV` - Dados de empresas
-- `K3241.K03200Y[0-9].D60110.ESTABELE` - Dados de estabelecimentos
-- Outros arquivos conforme definido nos scripts `.load`
+---
 
 ## Uso
 
-1. Certifique-se de que o PostgreSQL está rodando e que o banco de dados `contabilizei_db` foi criado.
+Acesse o Langflow em **http://localhost:7860** e abra o flow **Contabilizei**.
 
-2. Coloque os arquivos de dados na pasta `dados/`.
+Exemplos de perguntas:
 
-3. Execute os scripts de load na ordem apropriada:
+- *Quantas empresas foram abertas em 2024?*
+- *Quais estados tiveram mais aberturas em 2024?*
+- *Como evoluíram as aberturas de empresas ao longo de 2024?*
 
-```bash
-# Exemplo: carregar dados de estabelecimentos
-pgloader load/estabelecimentos.load
+---
 
-# Carregar dados de empresas
-pgloader load/empresas.load
+## Pipeline
 
-# E assim por diante para os outros arquivos
+O fluxo possui dois caminhos dependendo do resultado do Planner:
+
+```
+[Schema JSON] ──────────────────────────────────────────────────────────┐
+                                                                         ▼
+[Catálogo semântico base] ──► [Montagem do catálogo] ──► [Parser] ──► [Prompt Template (Planner)]
+[abertura_empresas.yaml] ────────────────────────────────────────────►  │
+                                                                         │ system_message
+[Chat Input] ───────────────────────────────────────────────────────►   │
+                                                                         ▼
+                                                                 [Groq LLM — Planner]
+                                                                 llama-3.3-70b-versatile
+                                                                         │
+                                                                         ▼
+                                                                 [Validar intent]
+                                                                 intent == "unknown"?
+                                          ┌──────── true ────────────── ┤
+                                          ▼                              │ false
+                               [Text Operations]                         ▼
+                               (mensagem de fallback)           [SQL Query Builder]
+                                          │                      JSON → SQL (SQLAlchemy)
+                                          ▼                              │
+                               [Chat Output ①]                           ▼
+                               (intent desconhecido)            [SQL Database]
+                                                                 Executa no ClickHouse
+                                                                         │
+                                                                         ▼
+                                                                 [Parser: DataFrame → texto]
+                                                                         │
+                                                                         ▼
+                                                                 [Prompt Template (Deliver)]
+                                                                         │
+                                                                         ▼
+                                                                 [Groq LLM — Deliver]
+                                                                 llama-3.3-70b-versatile
+                                                                         │
+                                                                         ▼
+                                                                 [Chat Output ②]
+                                                                 (resposta final)
 ```
 
-## Estrutura do Projeto
+---
+
+## Estrutura de Arquivos
 
 ```
 contabilizei/
-├── dados/              # Arquivos CSV de dados CNPJ (não versionados)
-├── load/               # Scripts de configuração do pgloader
-│   ├── empresas.load
-│   ├── estabelecimentos.load
-│   ├── natureza_juridica.load
-│   ├── motivo_situacao_cadastral.load
-│   ├── paises.load
-│   ├── qualificacao_socios.load
-│   └── simples.load
-└── README.md
+├── docker-compose.yml                              # Infraestrutura (MinIO, ClickHouse, Langflow)
+├── langflow.dockerfile                             # Imagem customizada do Langflow
+├── .env.langflow.local                             # Variáveis de ambiente locais (não versionado)
+├── clickhouse_config/
+│   └── init.sql                                    # DDL executado na inicialização do ClickHouse
+├── langflow_config/
+│   ├── langflow.db                                 # SQLite com os fluxos Langflow
+│   └── secret_key                                  # Chave secreta do Langflow
+├── v1/
+│   ├── base_semantic_catalog.yaml                  # Catálogo semântico base
+│   ├── datasets/
+│   │   └── abertura_empresas.yaml                  # Definição do dataset
+│   ├── components/
+│   │   ├── semantic_catalog_builder_component.py   # Monta catálogo completo (Langflow component)
+│   │   ├── validate_intent_component.py            # Valida intent (Langflow component)
+│   │   └── sql_query_builder_component.py          # JSON → SQL (Langflow component)
+│   ├── planner/
+│   │   ├── system_prompt.txt                       # Prompt do Planner LLM
+│   │   └── planner.schema.json                     # JSON Schema da saída do Planner
+│   ├── deliver/
+│   │   └── system_prompt.txt                       # Prompt do Deliver LLM
+│   └── langflow/
+│       └── V202604302236__melhorias_nos_componentes_customizados.json  # Export do flow
+├── dados_receita_federal/                          # Dados brutos CNPJ (não versionados)
+└── minio_data/                                     # Volume persistente do MinIO
 ```
 
-## Notas Importantes
-
-- Os arquivos de dados são muito grandes (vários GB). Certifique-se de ter espaço em disco suficiente.
-- O processo de importação pode levar várias horas dependendo do tamanho dos dados e da performance do sistema.
-- Os arquivos de dados usam codificação Windows-1252 (CP1252), que é tratada automaticamente pelos scripts de load.
-- Certifique-se de que o banco de dados PostgreSQL tem configurações adequadas de memória e conexões para lidar com a carga de dados.
+---
 
 ## Referências
 
-- [pgloader - Documentação Oficial](https://pgloader.readthedocs.io/)
-- [Dados Abertos CNPJ - Receita Federal](https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/)
-
-```bash
-docker run -p 9000:9000 -p 9090:9090 --name minio_server -v ./minio_data:/data -e "MINIO_ROOT_USER=root" -e "MINIO_ROOT_PASSWORD=password" quay.io/minio/minio server /data --console-address :9090
-
-docker run -p 9083:9083 --env SERVICE_NAME=metastore --env HIVE_CUSTOM_CONF_DIR=/opt/hive/conf -v ./hive_condig:/opt/hive/conf --name hive_metastore apache/hive:4.1.0
-
-docker run -p 8080:8080 --name presto_server -v ./presto_catalog:/opt/presto-server/etc/catalog prestodb/presto
-```
+- [Langflow — Documentação](https://docs.langflow.org/)
+- [ClickHouse S3 Engine](https://clickhouse.com/docs/en/engines/table-engines/integrations/s3)
+- [Groq API](https://console.groq.com/docs/openai)
+- [Dados Abertos CNPJ — Receita Federal](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj)

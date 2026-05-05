@@ -1,0 +1,29 @@
+@startuml C4_Container
+!include <C4/C4_Container>
+
+LAYOUT_WITH_LEGEND()
+LAYOUT_TOP_DOWN()
+
+title Nível 2 — Container: Agente de Analytics Conversacional (Produção)
+
+Person(analyst, "Analista de Negócios", "Usuário não técnico,\nsem conhecimento em SQL")
+
+System_Boundary(aws, "AWS") {
+    Container(lambda, "Analytics Agent", "AWS Lambda + LangChain", "Agente conversacional que converte\nperguntas em linguagem natural em SQL,\nexecuta queries e gera respostas textuais")
+
+    System(bedrock, "Amazon Bedrock", "Provê modelos LLM para\nanálise semântica (Planner)\ne síntese de respostas (Deliver)")
+}
+
+System_Ext(clickhouse, "ClickHouse Cloud", "Data Warehouse\nProcessa queries SQL\nTabela: contabilizei.abertura_empresas_parquet")
+
+note right of clickhouse
+  Pode ser substituído pelo
+  datalake existente na Contabilizei
+end note
+
+Rel_D(analyst, lambda, "1. Submete pergunta\nem linguagem natural", "HTTPS")
+Rel_R(lambda, bedrock, "2. Invoca LLM para análise\nsemântica e síntese de respostas")
+Rel_D(lambda, clickhouse, "3. Executa query SQL gerada")
+Rel_U(lambda, analyst, "4. Retorna resposta\nem linguagem natural")
+
+@enduml
