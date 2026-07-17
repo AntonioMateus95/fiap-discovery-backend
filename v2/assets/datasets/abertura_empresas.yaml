@@ -1,0 +1,176 @@
+id: abertura_empresas
+active: true
+physical:
+  table: abertura_empresas_parquet
+
+description: >
+  Dataset analítico sobre aberturas de empresas, preparado para consultas
+  agregadas de volume, distribuição regional e evolução temporal.
+
+analytical_grain: >
+  Cada linha representa um registro consultável da camada analítica
+  de abertura de empresas.
+
+allowed_operations:
+  select: true
+  filter: true
+  aggregate: true
+  group_by: true
+  order_by: true
+  limit: true
+  join: false
+
+planner_hints:
+  preferred_questions:
+    - Quantas empresas foram abertas em determinado período?
+    - Quais estados tiveram mais aberturas?
+    - Como evoluíram as aberturas ao longo dos meses?
+  avoid:
+    - Consultas linha a linha sem necessidade analítica
+    - Campos inexistentes no dataset
+    - Joins com tabelas raw
+
+joins: []
+
+fields:
+  - id: cnpj_basico
+    physical_name: cnpj_basico
+    label: CNPJ básico
+    semantic_type: identifier
+    data_type: string
+    description: Identificador base da empresa.
+    synonyms:
+      - cnpj
+      - identificador da empresa
+    capabilities:
+      selectable: true
+      filterable: true
+      groupable: false
+      sortable: false
+
+  - id: razao_social
+    physical_name: razao_social
+    label: Razão social
+    semantic_type: text
+    data_type: string
+    description: Nome jurídico da empresa.
+    synonyms:
+      - empresa
+      - nome da empresa
+      - razão social
+    capabilities:
+      selectable: true
+      filterable: true
+      groupable: false
+      sortable: true
+
+  - id: uf
+    physical_name: uf
+    label: UF
+    semantic_type: geography
+    data_type: string
+    description: Unidade federativa do registro.
+    synonyms:
+      - estado
+      - unidade federativa
+      - região
+    capabilities:
+      selectable: true
+      filterable: true
+      groupable: true
+      sortable: true
+    normalization:
+      mapping_group: uf
+
+  - id: ano_mes
+    physical_name: ano_mes
+    label: Ano mês de abertura
+    semantic_type: time
+    data_type: string
+    description: Competência mensal no formato YYYYMM.
+    synonyms:
+      - mês
+      - data de abertura
+      - período
+      - competencia
+      - ano mes
+    capabilities:
+      selectable: true
+      filterable: true
+      groupable: true
+      sortable: true
+    time:
+      grain: month
+      format: YYYYMM
+
+query_templates:
+  - id: aberturas_por_estado
+    description: Ranking de aberturas por estado.
+    example_question: Quais estados tiveram mais empresas abertas em 2024?
+    expected_plan:
+      intent: ranking
+      table: abertura_empresas_parquet
+      select:
+        - kind: dimension
+          field: uf
+        - kind: aggregated_field
+          field: "*"
+          aggregation: count
+          alias: total
+      filters:
+        - field: ano_mes
+          operator: between
+          value:
+            start: "202401"
+            end: "202412"
+      group_by:
+        - uf
+      order_by:
+        - field: total_aberturas
+          direction: desc
+      limit: 27
+      time_grain: none
+
+  - id: serie_temporal_aberturas
+    description: Evolução mensal de aberturas.
+    example_question: Como evoluíram as aberturas de empresas em 2024?
+    expected_plan:
+      intent: timeseries
+      table: abertura_empresas_parquet
+      select:
+        - kind: dimension
+          field: ano_mes
+        - kind: aggregated_field
+          field: "*"
+          aggregation: count
+          alias: total
+      filters:
+        - field: ano_mes
+          operator: between
+          value:
+            start: "202401"
+            end: "202412"
+      group_by:
+        - ano_mes
+      order_by:
+        - field: ano_mes
+          direction: asc
+      limit: 100
+      time_grain: month
+
+guardrails:
+  - Não usar campos fora da lista de fields ou o caractere coringa *.
+  - Não gerar joins.
+  - Não inferir município, CNAE, porte ou natureza jurídica se não existirem no dataset.
+  - Se a pergunta pedir algo fora do escopo, preencher notes com a limitação.
+
+unsupported_concepts:
+  - roi
+  - lucro
+  - receita liquida
+  - margem
+  - cac
+  - ltv
+  - churn
+  - ebitda
+  - nps

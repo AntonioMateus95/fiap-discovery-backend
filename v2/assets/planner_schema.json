@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GenericAnalyticsPlannerOutput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "intent"
+  ],
+  "properties": {
+    "table": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "Tabela lógica ou física alvo da consulta."
+    },
+    "intent": {
+      "type": "string",
+      "enum": [
+        "aggregation",
+        "ranking",
+        "timeseries",
+        "lookup",
+        "comparison",
+        "unknown"
+      ]
+    },
+    "select": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/selectItem"
+      }
+    },
+    "filters": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/filterItem"
+      }
+    },
+    "group_by": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "order_by": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/orderByItem"
+      }
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000
+    },
+    "time_grain": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "day",
+        "week",
+        "month",
+        "quarter",
+        "year",
+        "none",
+        null
+      ]
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "alias": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "selectItem": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "field"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "dimension"
+            },
+            "field": {
+              "$ref": "#/$defs/identifier"
+            },
+            "alias": {
+              "$ref": "#/$defs/alias"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "field",
+            "aggregation"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "aggregated_field"
+            },
+            "field": {
+              "$ref": "#/$defs/identifier"
+            },
+            "aggregation": {
+              "type": "string",
+              "enum": [
+                "count",
+                "count_distinct",
+                "sum",
+                "avg",
+                "min",
+                "max"
+              ]
+            },
+            "alias": {
+              "$ref": "#/$defs/alias"
+            }
+          }
+        }
+      ]
+    },
+    "scalarValue": {
+      "oneOf": [
+        {
+          "type": "string",
+          "maxLength": 500
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "betweenValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/scalarValue"
+        },
+        "end": {
+          "$ref": "#/$defs/scalarValue"
+        }
+      }
+    },
+    "listValue": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": {
+        "$ref": "#/$defs/scalarValue"
+      },
+      "uniqueItems": true
+    },
+    "filterItem": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator",
+            "value"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/identifier"
+            },
+            "operator": {
+              "type": "string",
+              "enum": [
+                "=",
+                "!=",
+                ">",
+                ">=",
+                "<",
+                "<=",
+                "like",
+                "ilike"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/scalarValue"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator",
+            "value"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/identifier"
+            },
+            "operator": {
+              "type": "string",
+              "enum": [
+                "in",
+                "not_in"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/listValue"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator",
+            "value"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/identifier"
+            },
+            "operator": {
+              "type": "string",
+              "const": "between"
+            },
+            "value": {
+              "$ref": "#/$defs/betweenValue"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/identifier"
+            },
+            "operator": {
+              "type": "string",
+              "enum": [
+                "is_null",
+                "is_not_null"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "orderByItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "direction"
+      ],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/identifier"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        }
+      }
+    }
+  }
+}
