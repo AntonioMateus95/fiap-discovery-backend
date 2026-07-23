@@ -7,4 +7,4 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_TEMPERATURE: float = 0.1
 
-    model_config = {"env_file": ".env"}
+    model_config = {"env_file": ".env.langchain.local"}

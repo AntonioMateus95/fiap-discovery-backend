@@ -5,10 +5,13 @@ dados_receita_federal/
 v1/analytics/abertura_empresas/output/
 
 # Arquivo de configuração local
-.env.langflow.local
+.env*.local
 
 # Volume do minio
 minio_data/
 
 # Trabalhos relacionados
 related_work/
+
+# Cache do python
+__pycache__/

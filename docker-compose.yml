@@ -31,27 +31,27 @@ services:
       minio:
         condition: service_started
 
-  langflow:
-    container_name: langflow
-    build:
-      context: .
-      dockerfile: langflow.dockerfile
-    ports:
-      - "7860:7860"
-    environment:
-      LANGFLOW_CONFIG_DIR: /app/config
-      LANGFLOW_DATABASE_URL: sqlite:////app/config/langflow.db
-      LANGFLOW_STORAGE_TYPE: s3
-      LANGFLOW_OBJECT_STORAGE_BUCKET_NAME: langflow
-      LANGFLOW_VARIABLES_TO_GET_FROM_ENVIRONMENT: CLICKHOUSE_DB_URL,GROQ_API_KEY
-      AWS_ACCESS_KEY_ID: admin
-      AWS_SECRET_ACCESS_KEY: password123
-      AWS_DEFAULT_REGION: auto
-      AWS_ENDPOINT_URL_S3: http://minio:9000
-      CLICKHOUSE_DB_URL: clickhouse+http://admin:password123@clickhouse:8123/contabilizei
-    env_file: .env.langflow.local #Adicione a variável GROQ_API_KEY neste arquivo
-    depends_on:
-      clickhouse:
-        condition: service_started
-    volumes:
-      - ./langflow_config:/app/config
+  # langflow:
+  #   container_name: langflow
+  #   build:
+  #     context: .
+  #     dockerfile: langflow.dockerfile
+  #   ports:
+  #     - "7860:7860"
+  #   environment:
+  #     LANGFLOW_CONFIG_DIR: /app/config
+  #     LANGFLOW_DATABASE_URL: sqlite:////app/config/langflow.db
+  #     LANGFLOW_STORAGE_TYPE: s3
+  #     LANGFLOW_OBJECT_STORAGE_BUCKET_NAME: langflow
+  #     LANGFLOW_VARIABLES_TO_GET_FROM_ENVIRONMENT: CLICKHOUSE_DB_URL,GROQ_API_KEY
+  #     AWS_ACCESS_KEY_ID: admin
+  #     AWS_SECRET_ACCESS_KEY: password123
+  #     AWS_DEFAULT_REGION: auto
+  #     AWS_ENDPOINT_URL_S3: http://minio:9000
+  #     CLICKHOUSE_DB_URL: clickhouse+http://admin:password123@clickhouse:8123/contabilizei
+  #   env_file: .env.langflow.local #Adicione a variável GROQ_API_KEY neste arquivo
+  #   depends_on:
+  #     clickhouse:
+  #       condition: service_started
+  #   volumes:
+  #     - ./langflow_config:/app/config

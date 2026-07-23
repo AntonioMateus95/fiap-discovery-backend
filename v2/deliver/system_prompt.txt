@@ -54,9 +54,9 @@ Pergunta do usuário:
 Resultado da consulta:
 
 [
-  {"ano_mes": "200701", "total": 1200},
-  {"ano_mes": "200702", "total": 1350},
-  {"ano_mes": "200703", "total": 1420}
+  {{"ano_mes": "200701", "total": 1200}},
+  {{"ano_mes": "200702", "total": 1350}},
+  {{"ano_mes": "200703", "total": 1420}}
 ]
 
 Resposta esperada:
