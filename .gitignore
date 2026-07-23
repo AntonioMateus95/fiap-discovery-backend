@@ -14,4 +14,4 @@ minio_data/
 related_work/
 
 # Cache do python
-__pycache__/
+# __pycache__/
