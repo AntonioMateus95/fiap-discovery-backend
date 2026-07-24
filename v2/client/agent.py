@@ -2,7 +2,7 @@ from pathlib import Path
 
 from langchain_groq import ChatGroq
 
-from v2.settings import Settings
+from v2.server.settings import Settings
 
 SYSTEM_PROMPT_PATH = Path(__file__).parent / "system_prompt.txt"
 

@@ -2,11 +2,11 @@ import json
 import re
 from pathlib import Path
 
-from v2.components.catalog_builder import build_semantic_catalog
-from v2.components.sql_builder import JsonToSqlBuilder
-from v2.components.sql_executor import execute_sql
-from v2.planner.chain import build_planner_chain
-from v2.settings import Settings
+from v2.server.components.catalog_builder import build_semantic_catalog
+from v2.server.components.sql_builder import JsonToSqlBuilder
+from v2.server.components.sql_executor import execute_sql
+from v2.server.planner.chain import build_planner_chain
+from v2.server.settings import Settings
 
 ASSETS_DIR = Path(__file__).parent / "assets"
 

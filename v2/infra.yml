@@ -4,7 +4,7 @@ services:
 
   minio:
     image: minio/minio
-    container_name: minio
+    container_name: v2.minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: admin
@@ -17,7 +17,7 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server:latest
-    container_name: clickhouse
+    container_name: v2.clickhouse
     ports:
       - "8123:8123" #HTTP Port
       - "9002:9000" #TCP Port

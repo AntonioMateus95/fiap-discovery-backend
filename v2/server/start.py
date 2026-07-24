@@ -4,11 +4,11 @@ Servidor MCP do assistente analítico Contabilizei.
 Expõe a tool `query_analytics` que encapsula a pipeline:
     planner (LLM) → validação de intent → SQL builder → executor (ClickHouse)
 
-Uso standalone (stdio transport):
-    python -m v2.mcp_server
+Uso standalone (streamable-http transport):
+    python -m v2.server.start
 
-O servidor é iniciado automaticamente como subprocesso pelo cliente MCP
-definido em v2/main.py.
+O servidor escuta em MCP_SERVER_HOST:MCP_SERVER_PORT (padrão 127.0.0.1:8000)
+no endpoint /mcp e é consumido pelo cliente MCP definido em v2/main.py.
 
 Variáveis de ambiente obrigatórias (via .env.langchain.local ou ambiente):
     GROQ_API_KEY       — chave da API Groq
@@ -17,13 +17,17 @@ Variáveis de ambiente obrigatórias (via .env.langchain.local ou ambiente):
 
 from mcp.server.fastmcp import FastMCP
 
-from v2.pipeline import AnalyticsPipeline
-from v2.settings import Settings
+from v2.server.pipeline import AnalyticsPipeline
+from v2.server.settings import Settings
 
 _settings = Settings()
 _pipeline = AnalyticsPipeline(_settings)
 
-mcp = FastMCP("contabilizei-analytics")
+mcp = FastMCP(
+    "contabilizei-analytics",
+    host=_settings.MCP_SERVER_HOST,
+    port=_settings.MCP_SERVER_PORT,
+)
 
 
 @mcp.tool()
@@ -46,4 +50,4 @@ def query_analytics(question: str) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    mcp.run(transport="streamable-http")
