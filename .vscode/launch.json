@@ -9,7 +9,7 @@
             "name": "Python Debugger: Module",
             "type": "debugpy",
             "request": "launch",
-            "module": "v2.main"
+            "module": "v2.start"
         }
     ]
 }
