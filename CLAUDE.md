@@ -6,7 +6,7 @@ Aplicação de analytics conversacional. O usuário faz uma pergunta em linguage
 
 O repositório contém **duas implementações do mesmo pipeline**, mantidas em paralelo:
 
-- **`v1/`** — orquestrado visualmente pelo [Langflow](https://www.langflow.org/). O fluxo está armazenado em `langflow_config/langflow.db` (flow id: `1105129f-452c-4730-979b-34373d655a0b`, nome: **Contabilizei**). Cada etapa do pipeline é um nó Langflow; a lógica customizada vive em `v1/components/*.py` como subclasses de `Component`.
+- **`v1/`** — orquestrado visualmente pelo [Langflow](https://www.langflow.org/). O fluxo roda a partir de `langflow_config/langflow.db`, um SQLite **não versionado** (estado local/gerado): na primeira subida do container, sem `langflow.db` existente, o entrypoint (`v1/entrypoint.sh`) importa automaticamente o export mais recente em `v1/langflow/*.json` (nome: **Contabilizei**). Cada etapa do pipeline é um nó Langflow; a lógica customizada vive em `v1/components/*.py` como subclasses de `Component`.
 - **`v2/`** — reimplementação do mesmo pipeline como código Python puro (LangChain + Starlette), exposta como API REST (`POST /query`), sem depender do runtime do Langflow.
 
 As duas versões compartilham o mesmo catálogo semântico, os mesmos prompts de LLM (Groq) e a mesma infraestrutura de dados (MinIO + ClickHouse). Ao alterar regras de negócio (prompts, catálogo, lógica de geração de SQL), avalie se a mudança precisa ser replicada nos dois lados — os arquivos são independentes, não compartilhados por import.
@@ -25,12 +25,23 @@ Contexto de negócio do desafio: ver `PROBLEM.md`.
 
 Credenciais padrão: `admin` / `password123`. Banco ClickHouse: `contabilizei`. Tabela analítica principal: `contabilizei.abertura_empresas_parquet` (populada via `S3 Engine`, DDL em `clickhouse_config/init.sql`).
 
-- v1: `docker compose -f v1/docker-compose.yml up -d` (sobe minio + clickhouse + langflow).
+- v1: `docker compose -f v1/docker-compose.yml up -d` (sobe minio + clickhouse + langflow). Na primeira execução (sem `langflow_config/langflow.db` local), o container do Langflow importa automaticamente o fluxo Contabilizei — ver seção "Bootstrap do fluxo (primeira execução)".
 - v2: `docker compose -f v2/infra.yml up -d` (sobe só minio + clickhouse; a API roda fora de container, ver seção v2).
 
 ---
 
 ## v1 — Langflow
+
+### Bootstrap do fluxo (primeira execução)
+
+`langflow_config/langflow.db` não é versionado (ver `.gitignore`) — é estado local, recriado pelo próprio Langflow. Para que quem clona o repositório pela primeira vez já suba com o fluxo Contabilizei pronto, sem precisar importar manualmente pela UI:
+
+- **`v1/entrypoint.sh`**: entrypoint do container `langflow`. Antes de rodar `langflow run`, verifica se `$LANGFLOW_CONFIG_DIR/langflow.db` já existe. Se **não** existir (primeira subida, `langflow_config/` vazio ou ausente), exporta `LANGFLOW_LOAD_FLOWS_PATH=/app/default_flows` para que o Langflow importe automaticamente o fluxo ao inicializar. Se o arquivo **já** existir (subidas seguintes), a variável não é definida e o import é pulado — isso preserva qualquer edição feita na UI e evita um bug conhecido do Langflow que trava a inicialização ao reimportar um fluxo já existente no banco.
+- **`v1/langflow.dockerfile`**: copia `v1/langflow/V202606160017__correcao_tipo_input_componentes_sql.json` (o export mais recente) para `/app/default_flows/contabilizei.json` na imagem, e define `ENTRYPOINT ["/app/entrypoint.sh"]` mantendo `CMD ["langflow", "run"]`.
+
+Ao gerar um novo export versionado em `v1/langflow/` (ver seção "Estrutura de Arquivos"), atualize também o `COPY` em `v1/langflow.dockerfile` para apontar para o arquivo mais recente.
+
+Se quiser forçar uma reimportação do fluxo padrão (ex.: para descartar edições locais feitas na UI), apague `langflow_config/langflow.db` e suba o container novamente.
 
 ### Pipeline — Fluxo de Dados
 
@@ -343,13 +354,14 @@ fiap-discovery-backend/
 ├── clickhouse_config/
 │   └── init.sql                                    # DDL executado na inicialização do ClickHouse
 ├── langflow_config/                                 # Estado do Langflow (usado só pelo v1)
-│   ├── langflow.db                                  # SQLite com os fluxos Langflow
+│   ├── langflow.db                                  # SQLite com os fluxos Langflow (gerado; não versionado, ver .gitignore)
 │   └── secret_key                                  # Chave secreta do Langflow
 ├── docs/                                             # Diagramas de arquitetura (C4: C2, C3)
 │
 ├── v1/
 │   ├── docker-compose.yml                          # Infraestrutura do v1 (MinIO, ClickHouse, Langflow)
-│   ├── langflow.dockerfile                         # Imagem customizada do Langflow
+│   ├── langflow.dockerfile                         # Imagem customizada do Langflow; importa o fluxo padrão na 1ª subida
+│   ├── entrypoint.sh                                # Entrypoint do container langflow (bootstrap do fluxo, ver seção v1)
 │   ├── base_semantic_catalog.yaml                  # Catálogo semântico base
 │   ├── datasets/
 │   │   └── abertura_empresas.yaml                  # Definição do dataset
