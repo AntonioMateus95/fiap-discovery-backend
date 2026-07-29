@@ -1,0 +1,127 @@
+version: 1
+
+catalog:
+  id: contabilize.ai
+  name: Discovery Contabilizei Semantic Catalog
+  description: >
+    Catálogo semântico para tradução de perguntas em linguagem natural
+    para um plano analítico estruturado em JSON.
+
+global_rules:
+  max_limit: 1000
+  default_intent: aggregation
+  default_time_grain: none
+  fallback_behavior: >
+    Se a pergunta for ambígua, priorizar uma interpretação agregada
+    e analítica, evitando consultas linha a linha.
+  planner_instructions:
+    - Retornar somente JSON válido.
+    - Nunca gerar SQL.
+    - Nunca inventar campos, métricas ou tabelas fora do catálogo.
+    - Preferir agregações, rankings e séries temporais quando aplicável.
+    - Respeitar os datasets e campos descritos neste catálogo.
+    - Evitar joins, exceto quando explicitamente permitidos no dataset.
+
+intents:
+  aggregation:
+    description: Consultas de volume total, consolidação ou resumo.
+  ranking:
+    description: Consultas ordenadas por maior ou menor valor agregado.
+  timeseries:
+    description: Consultas por evolução temporal.
+  lookup:
+    description: Consultas de detalhe ou busca específica.
+  comparison:
+    description: Comparação entre grupos, períodos ou segmentos.
+  unknown:
+    description: Consulta exige informação inexistente nos datasets ativos.
+
+operator_semantics:
+  "=":
+    description: Igualdade exata
+  "!=":
+    description: Diferença exata
+  ">":
+    description: Maior que
+  ">=":
+    description: Maior ou igual
+  "<":
+    description: Menor que
+  "<=":
+    description: Menor ou igual
+  like:
+    description: Correspondência textual sensível a caixa
+  ilike:
+    description: Correspondência textual sem sensibilidade a caixa
+  in:
+    description: Valor contido em lista
+  not_in:
+    description: Valor não contido em lista
+  between:
+    description: Intervalo entre início e fim
+  is_null:
+    description: Campo nulo
+  is_not_null:
+    description: Campo não nulo
+
+aggregation_functions:
+  count:
+    description: Conta registros
+  count_distinct:
+    description: Conta valores distintos
+  sum:
+    description: Soma valores numéricos
+  avg:
+    description: Média de valores numéricos
+  min:
+    description: Menor valor
+  max:
+    description: Maior valor
+
+normalization:
+  common_mappings:
+    uf:
+      São Paulo: SP
+      Sao Paulo: SP
+      Paraná: PR
+      Parana: PR
+      Rio de Janeiro: RJ
+      Minas Gerais: MG
+      Santa Catarina: SC
+      Rio Grande do Sul: RS
+      Bahia: BA
+      Pernambuco: PE
+      Ceará: CE
+      Ceara: CE
+      Goiás: GO
+      Goias: GO
+      Distrito Federal: DF
+
+  date_rules:
+    description: >
+      Regras de normalização de datas em linguagem natural para formatos
+      aceitos pelo dataset. A implementação final ocorre no componente Python.
+    examples:
+      - input: janeiro de 2024
+        normalized:
+          grain: month
+          value: "202401"
+      - input: 2024
+        normalized:
+          grain: year
+          start: "202401"
+          end: "202412"
+      - input: primeiro trimestre de 2024
+        normalized:
+          grain: quarter
+          start: "202401"
+          end: "202403"
+
+runtime_validation:
+  validate_table_exists: true
+  validate_fields_exist: true
+  validate_metrics_exist: true
+  validate_group_by_fields: true
+  validate_order_by_targets: true
+  validate_filter_operators: true
+  reject_unknown_identifiers: true
