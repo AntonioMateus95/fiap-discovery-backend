@@ -52,6 +52,7 @@ Depois de subir os serviços (passo específico de cada versão abaixo), acesse 
 | Bucket         | Finalidade                                    |
 |----------------|------------------------------------------------|
 | `contabilizei` | Dados analíticos lidos pelo ClickHouse via S3   |
+| `langflow`     | Uploads de arquivos feitos dentro do langflow   |
 
 No bucket **`contabilizei`**, carregue o arquivo parquet no seguinte caminho:
 
