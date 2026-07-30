@@ -103,6 +103,45 @@ fields:
       grain: month
       format: YYYYMM
 
+normalization:
+  common_mappings:
+    uf:
+      São Paulo: SP
+      Sao Paulo: SP
+      Paraná: PR
+      Parana: PR
+      Rio de Janeiro: RJ
+      Minas Gerais: MG
+      Santa Catarina: SC
+      Rio Grande do Sul: RS
+      Bahia: BA
+      Pernambuco: PE
+      Ceará: CE
+      Ceara: CE
+      Goiás: GO
+      Goias: GO
+      Distrito Federal: DF
+
+  date_rules:
+    description: >
+      Regras de normalização de datas em linguagem natural para formatos
+      aceitos pelo dataset. A implementação final ocorre no componente Python.
+    examples:
+      - input: janeiro de 2024
+        normalized:
+          grain: month
+          value: "202401"
+      - input: 2024
+        normalized:
+          grain: year
+          start: "202401"
+          end: "202412"
+      - input: primeiro trimestre de 2024
+        normalized:
+          grain: quarter
+          start: "202401"
+          end: "202403"
+
 query_templates:
   - id: aberturas_por_estado
     description: Ranking de aberturas por estado.
